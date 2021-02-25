@@ -14,7 +14,7 @@ provider "google" {
 ##############################
 
 resource "google_app_engine_application" "app_engine" {
-  project     = google_project.my_project.project_id
+  project     = var.PROJECT 
   location_id = var.REGION 
 }
 
