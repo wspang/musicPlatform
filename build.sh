@@ -7,7 +7,7 @@ export TF_VAR_INGEST_CODE_SOURCE_PATH="./ingest_cf_code.zip"
 # create zip files for deployment 
 zip -j $TF_VAR_INGEST_CODE_SOURCE_PATH ./ingest/*
 # init, plan, and prompt for build on terraform
-cd ./.terraform
+cd ./terraform
 echo "initatiting terraform build"
 terraform init
 echo "planning terraform build"

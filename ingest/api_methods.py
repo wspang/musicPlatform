@@ -2,7 +2,7 @@ import base64, json, os, praw, requests
 from spotipy import util
 import pandas as pd
 import numpy as np
-from google.cloud import storage, secretmanager
+from google.cloud import pubsub_v1, storage, secretmanager
 
 def reddit_obj():
     # Create a reddit object to make API calls with
@@ -98,3 +98,23 @@ class GcpMethods:
         # parse secret into dictionary
         payload_parsed = json.loads(payload)
         return payload_parsed 
+
+    def pubsub_push(self, message):
+        # given a dictionary (json), push the data to pubsub to be read by another function
+        # get env vars and instantiate the client
+        project_id, topic = os.environ['GCP_PROJECT_ID'], os.environ['PUBSUB_TOPIC']
+        publisher = pubsub_v1.PublisherClient()
+        topic_path = publisher.topic_path(project_id, topic)
+        # conver message to bytes to pass
+        message_bytes = json.dumps({"data": message}).encode('utf-8')
+        # Publishes a message
+        try:
+            publish_future = publisher.publish(topic_path, data=message_bytes)
+            publish_future.result()  # Verify the publish succeeded
+            return 200 
+        except Exception as e:
+            return (e, 500)
+
+    def pubsub_read(self, event):
+        # get the data from a pubsub message
+        return base64.b64decode(event['data'])

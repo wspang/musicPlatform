@@ -7,14 +7,18 @@ import os
 
 def config_handler(event, context):
     # called from scheduler. reads config from GCS to pass to reddit handler. Returns dictionary
+    # triggered by pubsub, message doesnt matter though
     code_bucket = os.environ['CODE_BUCKET']
     blob_path = os.environ['CONFIG_FILE_PATH']
     config_to_pass = GcpMethods().read_gcs_json(bucket=code_bucket, blob=blob_path)
-    return config_to_pass
+    # write config to pubsub to pass to next function
+    GcpMethods().pubsub_push(message=config_to_pass)
+    return 200 
 
 def reddit_handler(event, context):
     # Given reddit / playlist config, read reddit and parse for data. Export to GCS
-    payload = event['body']
+    # triggered by pubsub topic. read message for config data
+    payload = GcpMethods().pubsub_read(event=event)
     post_count = payload['post_count']
 
     # set reddit and spotify (auth) objects
@@ -48,6 +52,9 @@ def reddit_handler(event, context):
     data_bucket = os.environ['DATA_BUCKET']
     destination_blob = os.environ['REDDIT_INGEST_DATA_PATH']
     GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=post_df)
+
+    # write generic message to pubsub to trigger spotify function
+    GcpMethods().pubsub_push(message="SEND IT")
 
     return 200 
 

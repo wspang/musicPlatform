@@ -38,6 +38,32 @@ resource "google_storage_bucket" "music_data_bucket"{
 }
 
 ##############################
+# Pubsub Topic and Cloud Scheduler to trigger jobs, pass data 
+##############################
+resource "google_pubsub_topic" "ingest_kick_off_topic" {
+    name = "ingest-kick-off-topic"
+}
+
+resource "google_cloud_scheduler_job" "ingest_scheduler" {
+    name        = "ingest-trigger-job"
+    description = "CRON schedule to trigger the config job."
+    schedule    = "0 1 * * *"
+
+    pubsub_target {
+        topic_name = google_pubsub_topic.ingest_kick_off_topic.id
+        data       = base64encode("SEND IT")
+  }
+}
+
+resource "google_pubsub_topic" "reddit_ingest_config_topic" {
+    name = "reddit-ingest-config-topic" 
+}
+
+resource "google_pubsub_topic" "spotify_ingest_trigger_topic" {
+    name = "spotify-ingest-trigger-topic"
+}
+
+##############################
 # Cloud Functions for ingest. Include code zip file and function configs
 ##############################
 
@@ -62,7 +88,10 @@ resource "google_cloudfunctions_function" "ingest_config_function" {
     timeout = 60
     entry_point = "config_handler"
     ingress_settings = "ALLOW_INTERNAL_ONLY"
-    trigger_http = true
+    event_trigger = {
+        event_type = "google.pubsub.topic.publish"
+        resource = google_pubsub_topic.ingest_kick_off_topic.id
+    }
     
     source_archive_bucket = google_storage_bucket.music_code_bucket.name
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
@@ -81,7 +110,10 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     timeout = 300
     entry_point = "reddit_handler"
     ingress_settings = "ALLOW_ALL"
-    trigger_http = true
+    event_trigger = {
+        event_type = "google.pubsub.topic.publish"
+        resource = google_pubsub_topic.reddit_ingest_config_topic.id
+    }
     
     source_archive_bucket = google_storage_bucket.music_code_bucket.name
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
@@ -90,6 +122,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
         REDDIT_INGEST_DATA_PATH = replace(var.REDDIT_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
         EXTERNAL_APP_SECRET_NAME = "reddit-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
+        PUBSUB_TOPIC = google_pubsub_topic.reddit_ingest_config_topic.name
     }
 }
 
@@ -102,7 +135,10 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     timeout = 300
     entry_point = "spotify_handler"
     ingress_settings = "ALLOW_ALL"
-    trigger_http = true
+    event_trigger = {
+        event_type = "google.pubsub.topic.publish"
+        resource = google_pubsub_topic.spotify_ingest_trigger_topic.id
+    }
     
     source_archive_bucket = google_storage_bucket.music_code_bucket.name
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
@@ -112,5 +148,6 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
         SPOTIFY_INGEST_DATA_PATH = replace(var.SPOTIFY_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
         EXTERNAL_APP_SECRET_NAME = "spotify-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
+        PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
     }
 }

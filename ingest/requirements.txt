@@ -4,6 +4,7 @@ pandas
 praw
 requests
 spotipy
+google-cloud-pubsub-v1
 google-cloud-storage
 google-cloud-secret-manager
 gcsfs
