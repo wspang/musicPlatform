@@ -1,0 +1,9 @@
+fsspec
+numpy
+pandas
+praw
+requests
+spotipy
+google-cloud-storage
+google-cloud-secret-manager
+gcsfs

@@ -1,0 +1,9 @@
+{
+    "post_count": 100,
+    "playlists": [
+        {"sub":"HipHopHeads", "playlist": "hotHipHop", "uri":"5vrlPDIae4QQhdGHw7KFJc"},
+        {"sub":"ListenToThis", "playlist": "hotCheckItOut", "uri":"2E6NKwGiLOkSaIocSff39Y"},
+        {"sub":"Music", "playlist": "hotRandom", "uri":"7lRweQeV04LmHJggtLZr3n"},
+        {"sub":"Trap", "playlist": "hotTrap", "uri":"17KYq9iKI73ZCo4gtDYqHz"}
+    ]
+}
