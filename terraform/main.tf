@@ -8,6 +8,15 @@ provider "google" {
     zone = var.ZONE
 }
 
+##############################
+# App Engine: only one per project, region gets locked
+# needed for scheduler, may come in use later too
+##############################
+
+resource "google_app_engine_application" "app_engine" {
+  project     = google_project.my_project.project_id
+  location_id = var.REGION 
+}
 
 ##############################
 # GCS Buckets: code and data bucket 
@@ -88,7 +97,7 @@ resource "google_cloudfunctions_function" "ingest_config_function" {
     timeout = 60
     entry_point = "config_handler"
     ingress_settings = "ALLOW_INTERNAL_ONLY"
-    event_trigger = {
+    event_trigger {
         event_type = "google.pubsub.topic.publish"
         resource = google_pubsub_topic.ingest_kick_off_topic.id
     }
@@ -110,7 +119,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     timeout = 300
     entry_point = "reddit_handler"
     ingress_settings = "ALLOW_ALL"
-    event_trigger = {
+    event_trigger {
         event_type = "google.pubsub.topic.publish"
         resource = google_pubsub_topic.reddit_ingest_config_topic.id
     }
@@ -135,7 +144,7 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     timeout = 300
     entry_point = "spotify_handler"
     ingress_settings = "ALLOW_ALL"
-    event_trigger = {
+    event_trigger {
         event_type = "google.pubsub.topic.publish"
         resource = google_pubsub_topic.spotify_ingest_trigger_topic.id
     }
