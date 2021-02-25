@@ -2,17 +2,15 @@
 ###project wide variables#####
 ##############################
 variable "PROJECT_ID" {
-    default = "1040296522116"
     type = string
     sensitive = true
 }
 variable "PROJECT" {
-    default = "music-tracking-platform"
     type = string
-    sensitive = false
+    sensitive = true
 }
 variable "REGION" {
-    default = "us-east4"
+    default = "us-east1"
     type = string
     sensitive = false
 }
@@ -41,12 +39,10 @@ variable "INGEST_CODE_ZIP_PATH" {
     sensitive = false
 }
 variable "INGEST_CONFIG_SOURCE_PATH" {
-    default = "<set path>"
     type = string
     sensitive = true
 }
 variable "INGEST_CODE_SOURCE_PATH" {
-    default = "<set path>"
     type = string
     sensitive = true
 }

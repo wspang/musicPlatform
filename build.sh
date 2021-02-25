@@ -3,6 +3,8 @@ echo "set GOOGLE_APPLICATION_CREDENTIALS to .json file location"
 # set terraform env variables for build
 export TF_VAR_INGEST_CONFIG_SOURCE_PATH="./ingest/config.json"
 export TF_VAR_INGEST_CODE_SOURCE_PATH="./ingest_cf_code.zip"
+export TF_VAR_PROJECT=""
+export TF_VAR_PROJECT_ID=""
 
 # create zip files for deployment 
 zip -j $TF_VAR_INGEST_CODE_SOURCE_PATH ./ingest/*

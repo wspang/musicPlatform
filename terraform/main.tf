@@ -23,7 +23,7 @@ resource "google_app_engine_application" "app_engine" {
 ##############################
 
 resource "google_storage_bucket" "music_code_bucket"{
-    name          = format("%s-%s-%s-code",var.PROJECT,var.REGION,var.ENVIRONMENT)
+    name          = format("%s-%s-code",var.PROJECT,var.REGION)
     location      = var.REGION
     storage_class = "Standard"
     uniform_bucket_level_access = true
@@ -31,14 +31,14 @@ resource "google_storage_bucket" "music_code_bucket"{
 }
 
 resource "google_storage_bucket" "music_data_bucket"{
-    name          = format("%s-%s-%s-data",var.PROJECT,var.REGION,var.ENVIRONMENT)
+    name          = format("%s-%s-data",var.PROJECT,var.REGION)
     location      = var.REGION
     storage_class = "Standard"
     uniform_bucket_level_access = true
     force_destroy = false
     lifecycle_rule {
         condition {
-            age = 365
+            age = 730
         }
         action {
           type = "Delete"
@@ -132,6 +132,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
         EXTERNAL_APP_SECRET_NAME = "reddit-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
         PUBSUB_TOPIC = google_pubsub_topic.reddit_ingest_config_topic.name
+        GCP_PROJECT_ID = var.PROJECT_ID
     }
 }
 
@@ -158,5 +159,6 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
         EXTERNAL_APP_SECRET_NAME = "spotify-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
         PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
+        GCP_PROJECT_ID = var.PROJECT_ID
     }
 }
