@@ -19,6 +19,7 @@ def reddit_handler(event, context):
     # Given reddit / playlist config, read reddit and parse for data. Export to GCS
     # triggered by pubsub topic. read message for config data
     payload = GcpMethods().pubsub_read(event=event)
+    payload = json.loads(payload)
     post_count = payload['post_count']
 
     # set reddit and spotify (auth) objects

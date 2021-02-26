@@ -106,7 +106,7 @@ class GcpMethods:
         publisher = pubsub_v1.PublisherClient()
         topic_path = publisher.topic_path(project_id, topic)
         # conver message to bytes to pass
-        message_bytes = json.dumps({"data": message}).encode('utf-8')
+        message_bytes = u'{}'.format(message).encode('utf-8')
         # Publishes a message
         try:
             publish_future = publisher.publish(topic_path, data=message_bytes)
@@ -117,4 +117,6 @@ class GcpMethods:
 
     def pubsub_read(self, event):
         # get the data from a pubsub message
-        return base64.b64decode(event['data'])
+        msg = json.loads(event.decode('utf-8'))
+        msg = base64.b64decode(msg['data'])
+        return msg 

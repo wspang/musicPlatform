@@ -11,12 +11,15 @@ provider "google" {
 ##############################
 # App Engine: only one per project, region gets locked
 # needed for scheduler, may come in use later too
+# being kinda phuccy
 ##############################
 
+/*
 resource "google_app_engine_application" "app_engine" {
   project     = var.PROJECT 
   location_id = var.REGION 
 }
+*/
 
 ##############################
 # GCS Buckets: code and data bucket 
@@ -107,6 +110,8 @@ resource "google_cloudfunctions_function" "ingest_config_function" {
     environment_variables = {
         CODE_BUCKET = google_storage_bucket.music_code_bucket.name
         CONFIG_FILE_PATH = google_storage_bucket_object.ingest_config_json.name
+        GCP_PROJECT_ID = var.PROJECT_ID
+        PUBSUB_TOPIC = google_pubsub_topic.reddit_ingest_config_topic.name
     }
 }
 
@@ -131,7 +136,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
         REDDIT_INGEST_DATA_PATH = replace(var.REDDIT_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
         EXTERNAL_APP_SECRET_NAME = "reddit-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
-        PUBSUB_TOPIC = google_pubsub_topic.reddit_ingest_config_topic.name
+        PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
         GCP_PROJECT_ID = var.PROJECT_ID
     }
 }
@@ -158,7 +163,6 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
         SPOTIFY_INGEST_DATA_PATH = replace(var.SPOTIFY_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
         EXTERNAL_APP_SECRET_NAME = "spotify-api-ingest" 
         EXTERNAL_APP_SECRET_VERSION = 1
-        PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
         GCP_PROJECT_ID = var.PROJECT_ID
     }
 }
