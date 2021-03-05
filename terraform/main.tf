@@ -9,53 +9,99 @@ provider "google" {
 }
 
 ##############################
-# App Engine: only one per project, region gets locked
-# needed for scheduler, may come in use later too
-# being kinda phuccy
-##############################
-
-/*
-resource "google_app_engine_application" "app_engine" {
-  project     = var.PROJECT 
-  location_id = var.REGION 
-}
-*/
-
-##############################
 # GCS Buckets: code and data bucket 
 ##############################
 
 resource "google_storage_bucket" "music_code_bucket"{
     name          = format("%s-%s-code",var.PROJECT,var.REGION)
     location      = var.REGION
-    storage_class = "Standard"
+    storage_class = "STANDARD"
     uniform_bucket_level_access = true
     force_destroy = false
+}
+
+resource "google_storage_bucket_iam_member" "code_bucket_cf_ingest_member" {
+    bucket = google_storage_bucket.music_code_bucket.name
+    role = "roles/storage.objectViewer"
+    member = format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)
+    condition {
+        title = "cf_ingest_code_bucket_access"
+        description = "allow cloud functions to get config ingest files"
+        expression = format("resource.name.startsWith('projects/_/buckets/%s/objects/ingest')", google_storage_bucket.music_code_bucket.name)
+    } 
+    depends_on = [time_sleep.iam_sa_delay]
 }
 
 resource "google_storage_bucket" "music_data_bucket"{
     name          = format("%s-%s-data",var.PROJECT,var.REGION)
     location      = var.REGION
-    storage_class = "Standard"
+    storage_class = "STANDARD"
     uniform_bucket_level_access = true
     force_destroy = false
     lifecycle_rule {
-        condition {
-            age = 730
-        }
-        action {
-          type = "Delete"
-        }
+        condition {age = 730}
+        action {type = "Delete"}
+    }
+}
+
+resource "google_storage_bucket_iam_member" "data_bucket_cf_ingest_member" {
+    bucket = google_storage_bucket.music_data_bucket.name
+    role = "roles/storage.objectAdmin"
+    member = format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)
+    condition {
+        title = "cf_ingest_data_bucket_access"
+        description = "allow cloud functions to get and put data files for ingest"
+        expression = format("resource.name.startsWith('projects/_/buckets/%s/objects/%s') || resource.name.startsWith('projects/_/buckets/%s/objects/%s')", google_storage_bucket.music_data_bucket.name, var.REDDIT_INGEST_DATA_PATH, google_storage_bucket.music_data_bucket.name, var.SPOTIFY_INGEST_DATA_PATH)
+    } 
+    depends_on = [time_sleep.iam_sa_delay]
+}
+
+##############################
+# GCS Objects for Cloud Functions. 
+##############################
+
+resource "google_storage_bucket_object" "ingest_config_json" {
+    name = var.INGEST_CONFIG_FILE_PATH
+    bucket = google_storage_bucket.music_code_bucket.name
+    source = var.INGEST_CONFIG_SOURCE_PATH
+}
+
+data "archive_file" "cloud_function_source_code" {
+    type= "zip"
+    source_dir = var.INGEST_CODE_SOURCE_DIR
+    output_path = var.INGEST_CODE_SOURCE_ZIP 
+}
+
+resource "google_storage_bucket_object" "cloud_function_ingest_code_zip_file" {
+    bucket = google_storage_bucket.music_code_bucket.name
+    name = format("%s#%s", var.INGEST_CODE_ZIP_PATH, data.archive_file.cloud_function_source_code.output_md5)
+    source = data.archive_file.cloud_function_source_code.output_path
+    content_disposition = "attachment"
+    content_encoding = "gzip"
+    content_type = "application/zip"
+}
+
+##############################
+# Service Account for Cloud Functions
+##############################
+
+resource "google_service_account" "cloudfunction_service_account" {
+    account_id = "cf-ingest-sa-limited-69"
+    display_name = "CF_SA"
+    description = "limited permissions for cloud functions to do they ingest."
+}
+
+resource "time_sleep" "iam_sa_delay" {
+    # allow delay in SA creation for eventual consistency
+    create_duration = "4m"
+    triggers = {
+        google_service_account = google_service_account.cloudfunction_service_account.id
     }
 }
 
 ##############################
 # Pubsub Topic and Cloud Scheduler to trigger jobs, pass data 
 ##############################
-resource "google_pubsub_topic" "ingest_kick_off_topic" {
-    name = "ingest-kick-off-topic"
-}
-
 resource "google_cloud_scheduler_job" "ingest_scheduler" {
     name        = "ingest-trigger-job"
     description = "CRON schedule to trigger the config job."
@@ -67,29 +113,79 @@ resource "google_cloud_scheduler_job" "ingest_scheduler" {
   }
 }
 
+data "google_iam_policy" "ingest_pubsub_policy_data" {
+    depends_on = [time_sleep.iam_sa_delay]
+    binding {
+        role = "roles/pubsub.publisher"
+        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email), format("serviceAccount:%s@appspot.gserviceaccount.com", var.PROJECT)]
+    }
+    binding {
+        role = "roles/pubsub.subscriber"
+        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)]
+    }
+}
+
+resource "google_pubsub_topic" "ingest_kick_off_topic" {
+    name = "ingest-kick-off-topic"
+}
+
+resource "google_pubsub_topic_iam_policy" "ingest_pubsub_config_policy" {
+    topic = google_pubsub_topic.ingest_kick_off_topic.name 
+    policy_data = data.google_iam_policy.ingest_pubsub_policy_data.policy_data
+}
+
 resource "google_pubsub_topic" "reddit_ingest_config_topic" {
     name = "reddit-ingest-config-topic" 
 }
 
+resource "google_pubsub_topic_iam_policy" "ingest_pubsub_reddit_policy" {
+    topic = google_pubsub_topic.reddit_ingest_config_topic.name 
+    policy_data = data.google_iam_policy.ingest_pubsub_policy_data.policy_data
+}
 resource "google_pubsub_topic" "spotify_ingest_trigger_topic" {
     name = "spotify-ingest-trigger-topic"
 }
 
-##############################
-# Cloud Functions for ingest. Include code zip file and function configs
-##############################
-
-resource "google_storage_bucket_object" "ingest_config_json" {
-    name = var.INGEST_CONFIG_FILE_PATH
-    bucket = google_storage_bucket.music_code_bucket.name
-    source = var.INGEST_CONFIG_SOURCE_PATH
+resource "google_pubsub_topic_iam_policy" "ingest_pubsub_spotify_policy" {
+    topic = google_pubsub_topic.spotify_ingest_trigger_topic.name 
+    policy_data = data.google_iam_policy.ingest_pubsub_policy_data.policy_data
 }
 
-resource "google_storage_bucket_object" "cloud_function_ingest_code_zip_file" {
-    name = var.INGEST_CODE_ZIP_PATH
-    bucket = google_storage_bucket.music_code_bucket.name
-    source = var.INGEST_CODE_SOURCE_PATH
+##############################
+# Secret Manager for Ext. App Creds
+##############################
+
+resource "google_secret_manager_secret" "reddit_secret" {
+    secret_id = var.REDDIT_SECRET
+    replication {automatic = true}
 }
+
+resource "google_secret_manager_secret" "spotify_secret" {
+    secret_id = var.SPOTIFY_SECRET
+    replication {automatic = true}
+}
+
+data "google_iam_policy" "ingest_secret_policy_data" {
+    depends_on = [time_sleep.iam_sa_delay]
+    binding {
+        role = "roles/secretmanager.secretAccessor"
+        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)]
+  }
+}
+
+resource "google_secret_manager_secret_iam_policy" "spotify_secret_policy" {
+    secret_id = google_secret_manager_secret.spotify_secret.secret_id
+    policy_data = data.google_iam_policy.ingest_secret_policy_data.policy_data
+}
+
+resource "google_secret_manager_secret_iam_policy" "reddit_secret_policy" {
+    secret_id = google_secret_manager_secret.reddit_secret.secret_id
+    policy_data = data.google_iam_policy.ingest_secret_policy_data.policy_data
+}
+
+##############################
+# Cloud Functions for ingest. 
+##############################
 
 resource "google_cloudfunctions_function" "ingest_config_function" {
     name = "ingest-config-function"
@@ -113,6 +209,10 @@ resource "google_cloudfunctions_function" "ingest_config_function" {
         GCP_PROJECT_ID = var.PROJECT_ID
         PUBSUB_TOPIC = google_pubsub_topic.reddit_ingest_config_topic.name
     }
+
+    # tie service account defined above to cloud function. Time sleep to allow eventual consistency on IAM SA creation
+    service_account_email = google_service_account.cloudfunction_service_account.email 
+    depends_on = [time_sleep.iam_sa_delay]
 }
 
 resource "google_cloudfunctions_function" "ingest_reddit_function" {
@@ -123,7 +223,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     available_memory_mb = 256
     timeout = 300
     entry_point = "reddit_handler"
-    ingress_settings = "ALLOW_ALL"
+    ingress_settings = "ALLOW_INTERNAL_ONLY"
     event_trigger {
         event_type = "google.pubsub.topic.publish"
         resource = google_pubsub_topic.reddit_ingest_config_topic.id
@@ -133,12 +233,16 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = replace(var.REDDIT_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
-        EXTERNAL_APP_SECRET_NAME = "reddit-api-ingest" 
-        EXTERNAL_APP_SECRET_VERSION = 1
+        REDDIT_INGEST_DATA_PATH = format("%s%s.tsv", var.REDDIT_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
+        EXTERNAL_APP_SECRET_NAME = var.REDDIT_SECRET 
+        EXTERNAL_APP_SECRET_VERSION = "latest"
         PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
         GCP_PROJECT_ID = var.PROJECT_ID
     }
+
+    # tie service account defined above to cloud function. Time sleep to allow eventual consistency on IAM SA creation
+    service_account_email = google_service_account.cloudfunction_service_account.email 
+    depends_on = [time_sleep.iam_sa_delay]
 }
 
 resource "google_cloudfunctions_function" "ingest_spotify_function" {
@@ -149,7 +253,7 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     available_memory_mb = 256
     timeout = 300
     entry_point = "spotify_handler"
-    ingress_settings = "ALLOW_ALL"
+    ingress_settings = "ALLOW_INTERNAL_ONLY"
     event_trigger {
         event_type = "google.pubsub.topic.publish"
         resource = google_pubsub_topic.spotify_ingest_trigger_topic.id
@@ -159,10 +263,14 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = replace(var.REDDIT_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
-        SPOTIFY_INGEST_DATA_PATH = replace(var.SPOTIFY_INGEST_DATA_PATH, "{DATEPATH}", formatdate("YYYY/MM/DD", timestamp()))
-        EXTERNAL_APP_SECRET_NAME = "spotify-api-ingest" 
-        EXTERNAL_APP_SECRET_VERSION = 1
+        REDDIT_INGEST_DATA_PATH = format("%s%s.tsv", var.REDDIT_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
+        SPOTIFY_INGEST_DATA_PATH = format("%s%s.tsv", var.SPOTIFY_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
+        EXTERNAL_APP_SECRET_NAME = var.SPOTIFY_SECRET 
+        EXTERNAL_APP_SECRET_VERSION = "latest"
         GCP_PROJECT_ID = var.PROJECT_ID
     }
+
+    # tie service account defined above to cloud function. Time sleep to allow eventual consistency on IAM SA creation
+    service_account_email = google_service_account.cloudfunction_service_account.email 
+    depends_on = [time_sleep.iam_sa_delay]
 }

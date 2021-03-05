@@ -11,8 +11,9 @@ def config_handler(event, context):
     code_bucket = os.environ['CODE_BUCKET']
     blob_path = os.environ['CONFIG_FILE_PATH']
     config_to_pass = GcpMethods().read_gcs_json(bucket=code_bucket, blob=blob_path)
-    # write config to pubsub to pass to next function
-    GcpMethods().pubsub_push(message=config_to_pass)
+    # convert to json string. write config to pubsub to pass to next function
+    config_json = json.dumps(config_to_pass)
+    GcpMethods().pubsub_push(message=config_json)
     return 200 
 
 def reddit_handler(event, context):

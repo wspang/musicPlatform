@@ -99,7 +99,7 @@ class GcpMethods:
         payload_parsed = json.loads(payload)
         return payload_parsed 
 
-    def pubsub_push(self, message):
+    def pubsub_push(self, message:str):
         # given a dictionary (json), push the data to pubsub to be read by another function
         # get env vars and instantiate the client
         project_id, topic = os.environ['GCP_PROJECT_ID'], os.environ['PUBSUB_TOPIC']
@@ -117,6 +117,6 @@ class GcpMethods:
 
     def pubsub_read(self, event):
         # get the data from a pubsub message
-        msg = json.loads(event.decode('utf-8'))
-        msg = base64.b64decode(msg['data'])
+        msg = event['data']
+        msg = base64.b64decode(msg)
         return msg 
