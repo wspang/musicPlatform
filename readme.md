@@ -16,4 +16,4 @@ Here, will have a daily ingest of reddit music info with corresponding Spotify t
 ### Why
 I like the music and the data 
 ## Diagram
-![Diagram](./platformDiagram.png)
+![Diagram](https://github.com/wspang/musicPlatform/blob/dev/platformDiagram.png)
