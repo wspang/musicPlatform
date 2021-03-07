@@ -299,3 +299,60 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     service_account_email = google_service_account.cloudfunction_service_account.email 
     depends_on = [time_sleep.iam_sa_delay]
 }
+
+##############################
+# BigQuery Extract Dataset and External Tables 
+##############################
+
+resource "google_bigquery_dataset" "extract_schema" {
+    dataset_id = var.BQ_EXTRACT_SCHEMA
+    description = "Extract schema for external tables in GCS"
+    location = "US"
+    delete_contents_on_destroy = true
+    default_table_expiration_ms = null
+    default_partition_expiration_ms = null
+    access {
+        role = "OWNER"
+        user_by_email = TODO
+    }
+}
+
+resource "google_bigquery_table" "extract_tbl_reddit" {
+    dataset_id = google_bigquery_dataset.extract_schema.dataset_id
+    table_id   = "reddit"
+    description = "external table on reddit GCS path"
+    deletion_protection = false
+
+    external_data_configuration {
+        source_format = "CSV"
+        source_uris = "${google_storage_bucket.music_data_bucket.name}${var.REDDIT_INGEST_DATA_PATH}*"
+        autodetect = true
+        schema = null
+        compression = "NONE"
+        ignore_unknown_values = true
+        hive_partitioning_options {
+            mode = AUTO
+            source_uri_prefix = "${google_storage_bucket.music_data_bucket.name}${var.REDDIT_INGEST_DATA_PATH}"
+        }
+    }
+}
+
+resource "google_bigquery_table" "extract_tbl_spotify" {
+    dataset_id = google_bigquery_dataset.extract_schema.dataset_id
+    table_id   = "spotify"
+    description = "external table on spotify GCS path"
+    deletion_protection = false
+
+    external_data_configuration {
+        source_format = "CSV"
+        source_uris = "${google_storage_bucket.music_data_bucket.name}${var.SPOTIFY_INGEST_DATA_PATH}*"
+        autodetect = true
+        schema = null
+        compression = "NONE"
+        ignore_unknown_values = true
+        hive_partitioning_options {
+            mode = AUTO
+            source_uri_prefix = "${google_storage_bucket.music_data_bucket.name}${var.SPOTIFY_INGEST_DATA_PATH}"
+        }
+    }
+}

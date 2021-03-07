@@ -15,3 +15,5 @@ Here, will have a daily ingest of reddit music info with corresponding Spotify t
 - TODO: integrate GitOps to trigger Terraform builds on git commits to certain branches
 ### Why
 I like the music and the data 
+## Diagram
+![Diagram](./platformDiagram.png)

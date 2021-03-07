@@ -56,7 +56,7 @@ def spotify_auth(grant_type):
 def format_date_key(object_path):
     # replaces the '{DATEPARTITION}' variable in string to format GCS date path.
     replace_val = "{DATEPARTITION}"
-    date_format = date.today().strftime('%Y/%m/%d')
+    date_format = date.today().strftime('dt=%Y-%m-%d')
 
     if replace_val not in object_path:
         raise KeyError("calling format_date_key is used for GCS path partitions.\nRequired value: '{DATEPARTITION}'")

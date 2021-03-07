@@ -81,3 +81,10 @@ variable "REDDIT_SECRET" {
     sensitive = true
     description = "secret name to access reddit keys"
 }
+##############################
+######BigQuery Resource#######
+##############################
+variable "BQ_EXTRACT_SCHEMA" {
+    default = "extract"
+    description = "schema name to use for extract external tables"
+}
