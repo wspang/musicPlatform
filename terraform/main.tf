@@ -20,14 +20,27 @@ resource "google_storage_bucket" "music_code_bucket"{
     force_destroy = false
 }
 
+# roles/storage.objectViewer does not include get bucket access. need below or a custom role.
 resource "google_storage_bucket_iam_member" "code_bucket_cf_ingest_member" {
     bucket = google_storage_bucket.music_code_bucket.name
+    role = "roles/storage.legacyBucketReader"
+    member = "serviceAccount:${google_service_account.cloudfunction_service_account.email}"
+    depends_on = [time_sleep.iam_sa_delay]
+}
+
+resource "google_storage_bucket_iam_member" "code_object_cf_ingest_member" {
+    bucket = google_storage_bucket.music_code_bucket.name
     role = "roles/storage.objectViewer"
-    member = format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)
+    member = "serviceAccount:${google_service_account.cloudfunction_service_account.email}"
     condition {
         title = "cf_ingest_code_bucket_access"
         description = "allow cloud functions to get config ingest files"
-        expression = format("resource.name.startsWith('projects/_/buckets/%s/objects/ingest')", google_storage_bucket.music_code_bucket.name)
+        expression = "resource.type == 'storage.googleapis.com/Object' && resource.name == 'projects/_/buckets/${google_storage_bucket.music_code_bucket.name}/objects/${var.INGEST_CONFIG_FILE_PATH}'" 
+        expression = <<-EOT
+            resource.type == 'storage.googleapis.com/Bucket' 
+            || ( resource.type == 'storage.googleapis.com/Object' 
+                && resource.name == 'projects/_/buckets/${google_storage_bucket.music_data_bucket.name}/objects/${var.INGEST_CONFIG_FILE_PATH}' )
+            EOT
     } 
     depends_on = [time_sleep.iam_sa_delay]
 }
@@ -46,12 +59,24 @@ resource "google_storage_bucket" "music_data_bucket"{
 
 resource "google_storage_bucket_iam_member" "data_bucket_cf_ingest_member" {
     bucket = google_storage_bucket.music_data_bucket.name
+    role = "roles/storage.legacyBucketReader"
+    member = "serviceAccount:${google_service_account.cloudfunction_service_account.email}"
+    depends_on = [time_sleep.iam_sa_delay]
+}
+
+resource "google_storage_bucket_iam_member" "data_object_cf_ingest_member" {
+    bucket = google_storage_bucket.music_data_bucket.name
     role = "roles/storage.objectAdmin"
-    member = format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)
+    member = "serviceAccount:${google_service_account.cloudfunction_service_account.email}"
     condition {
-        title = "cf_ingest_data_bucket_access"
+        title = "cf_ingest_data_object_access"
         description = "allow cloud functions to get and put data files for ingest"
-        expression = format("resource.name.startsWith('projects/_/buckets/%s/objects/%s') || resource.name.startsWith('projects/_/buckets/%s/objects/%s')", google_storage_bucket.music_data_bucket.name, var.REDDIT_INGEST_DATA_PATH, google_storage_bucket.music_data_bucket.name, var.SPOTIFY_INGEST_DATA_PATH)
+        expression = <<-EOT
+            resource.type == 'storage.googleapis.com/Bucket' 
+            || ( resource.type == 'storage.googleapis.com/Object' 
+                && ( resource.name.startsWith( 'projects/_/buckets/${google_storage_bucket.music_data_bucket.name}/objects/${var.REDDIT_INGEST_DATA_PATH}' ) 
+                    || resource.name.startsWith( 'projects/_/buckets/${google_storage_bucket.music_data_bucket.name}/objects/${var.SPOTIFY_INGEST_DATA_PATH}' )))
+            EOT
     } 
     depends_on = [time_sleep.iam_sa_delay]
 }
@@ -74,7 +99,7 @@ data "archive_file" "cloud_function_source_code" {
 
 resource "google_storage_bucket_object" "cloud_function_ingest_code_zip_file" {
     bucket = google_storage_bucket.music_code_bucket.name
-    name = format("%s#%s", var.INGEST_CODE_ZIP_PATH, data.archive_file.cloud_function_source_code.output_md5)
+    name = "${var.INGEST_CODE_ZIP_PATH}#${data.archive_file.cloud_function_source_code.output_md5}"
     source = data.archive_file.cloud_function_source_code.output_path
     content_disposition = "attachment"
     content_encoding = "gzip"
@@ -117,11 +142,11 @@ data "google_iam_policy" "ingest_pubsub_policy_data" {
     depends_on = [time_sleep.iam_sa_delay]
     binding {
         role = "roles/pubsub.publisher"
-        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email), format("serviceAccount:%s@appspot.gserviceaccount.com", var.PROJECT)]
+        members = ["serviceAccount:${google_service_account.cloudfunction_service_account.email}", "serviceAccount:${var.PROJECT}@appspot.gserviceaccount.com"]
     }
     binding {
         role = "roles/pubsub.subscriber"
-        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)]
+        members = ["serviceAccount:${google_service_account.cloudfunction_service_account.email}"]
     }
 }
 
@@ -169,7 +194,7 @@ data "google_iam_policy" "ingest_secret_policy_data" {
     depends_on = [time_sleep.iam_sa_delay]
     binding {
         role = "roles/secretmanager.secretAccessor"
-        members = [format("serviceAccount:%s", google_service_account.cloudfunction_service_account.email)]
+        members = ["serviceAccount:${google_service_account.cloudfunction_service_account.email}"]
   }
 }
 
@@ -233,7 +258,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = format("%s%s.tsv", var.REDDIT_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
+        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
         EXTERNAL_APP_SECRET_NAME = var.REDDIT_SECRET 
         EXTERNAL_APP_SECRET_VERSION = "latest"
         PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
@@ -263,8 +288,8 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = format("%s%s.tsv", var.REDDIT_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
-        SPOTIFY_INGEST_DATA_PATH = format("%s%s.tsv", var.SPOTIFY_INGEST_DATA_PATH, formatdate("YYYY/MM/DD", timestamp())) 
+        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
+        SPOTIFY_INGEST_DATA_PATH = "${var.SPOTIFY_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
         EXTERNAL_APP_SECRET_NAME = var.SPOTIFY_SECRET 
         EXTERNAL_APP_SECRET_VERSION = "latest"
         GCP_PROJECT_ID = var.PROJECT_ID

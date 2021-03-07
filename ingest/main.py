@@ -1,6 +1,6 @@
 from reddit_ingest import Reddit
 from spotify_ingest import Spotify 
-from api_methods import GcpMethods
+from api_methods import GcpMethods, format_date_key
 import pandas as pd
 import json
 import os
@@ -53,6 +53,7 @@ def reddit_handler(event, context):
     # write to GCS data bucket
     data_bucket = os.environ['DATA_BUCKET']
     destination_blob = os.environ['REDDIT_INGEST_DATA_PATH']
+    destination_blob = format_date_key(destination_blob)
     GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=post_df)
 
     # write generic message to pubsub to trigger spotify function
@@ -66,6 +67,7 @@ def spotify_handler(event, context):
 
     # parse out titles from data
     data_bucket, source_blob = os.environ['DATA_BUCKET'], os.environ['REDDIT_INGEST_DATA_PATH']
+    source_blob = format_date_key(source_blob)
     df_data = GcpMethods().read_gcs_tsv(bucket=data_bucket, blob=source_blob)
     # deduplicate and rid null's on artist and track parsed
     #spot_data = df_data[['artist', 'track']].drop_duplicates(subset=['artist','track']).dropna()
@@ -80,12 +82,14 @@ def spotify_handler(event, context):
     df_dim_track = pd.DataFrame(spot.get_track_details(ids=spot_data))
     
     # write back reddit results to GCS with track id
-    output_blob = os.environ['REDDIT_INGEST_DATA_PATH']
-    GcpMethods().write_gcs(bucket=data_bucket, blob=output_blob, blob_data=df_data)
+    destination_blob = os.environ['REDDIT_INGEST_DATA_PATH']
+    destination_blob = format_date_key(destination_blob)
+    GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=df_data)
 
     # write the track dim table (df) to gcs
-    output_blob = os.environ['SPOTIFY_INGEST_DATA_PATH']
-    GcpMethods().write_gcs(bucket=data_bucket, blob=output_blob, blob_data=df_dim_track)
+    destination_blob = os.environ['SPOTIFY_INGEST_DATA_PATH']
+    destination_blob = format_date_key(destination_blob)
+    GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=df_dim_track)
 
     return 200
 

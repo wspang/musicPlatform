@@ -1,4 +1,5 @@
 import base64, json, os, praw, requests
+from datetime import date
 from spotipy import util
 import pandas as pd
 import numpy as np
@@ -52,6 +53,17 @@ def spotify_auth(grant_type):
     
     return token
 
+def format_date_key(object_path):
+    # replaces the '{DATEPARTITION}' variable in string to format GCS date path.
+    replace_val = "{DATEPARTITION}"
+    date_format = date.today().strftime('%Y/%m/%d')
+
+    if replace_val not in object_path:
+        raise KeyError("calling format_date_key is used for GCS path partitions.\nRequired value: '{DATEPARTITION}'")
+
+    object_path = object_path.replace(replace_val, date_format)
+    return object_path 
+
 class GcpMethods:
     def __init__(self):
         pass
@@ -63,12 +75,6 @@ class GcpMethods:
 
     def read_gcs_tsv(self, bucket, blob):
         # read a tsv / csv file from GCS. 
-        # blob_obj = storage.Client().get_bucket(bucket).blob(blob)
-        # write and load from temp storage
-        # tmp_file = "/tmp/tmpfile.tsv"
-        # blob.download_to_filename(tmp_file) 
-        # with open(tmp_file) as f:
-            # list_load = csv.DictReader(f, delimiter='\t')
         blob_obj = f"gs://{bucket}/{blob}"
         df = pd.read_csv(blob_obj, delimiter="\t")
         df = df.replace({np.nan: None})
