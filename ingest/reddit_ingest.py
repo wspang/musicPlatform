@@ -9,7 +9,7 @@ class Reddit:
     
     def get_posts(self, subreddit_name, post_count):
         # retrieve post titles  from subreddits and return as a list to process.
-        posts = [{"id": r.id, "title": r.title, "subreddit": subreddit_name, "score": r.score, "upvote_ratio": r.upvote_ratio} for r in self.REDDIT.subreddit(subreddit_name).hot(limit=post_count)]
+        posts = [{"post_id": r.id, "title": r.title, "subreddit": subreddit_name, "score": r.score, "upvote_ratio": r.upvote_ratio} for r in self.REDDIT.subreddit(subreddit_name).hot(limit=post_count)]
         return posts 
     
     def parse_title(self, title):

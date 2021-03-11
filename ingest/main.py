@@ -1,6 +1,6 @@
 from reddit_ingest import Reddit
 from spotify_ingest import Spotify 
-from api_methods import GcpMethods, format_date_key
+from api_methods import GcpMethods, format_hive_partition
 import pandas as pd
 import json
 import os
@@ -10,10 +10,15 @@ def config_handler(event, context):
     # triggered by pubsub, message doesnt matter though
     code_bucket = os.environ['CODE_BUCKET']
     blob_path = os.environ['CONFIG_FILE_PATH']
-    config_to_pass = GcpMethods().read_gcs_json(bucket=code_bucket, blob=blob_path)
+    config_json = GcpMethods().read_gcs_json(bucket=code_bucket, blob=blob_path)
+    # spawn cloud function per subreddit.
+    # flatten the config to make json per iter in playlist dict. then attach top level attribs.
     # convert to json string. write config to pubsub to pass to next function
-    config_json = json.dumps(config_to_pass)
-    GcpMethods().pubsub_push(message=config_json)
+    subs = config_json.pop('playlists')
+    for payload in subs:
+        payload.update(config_json)
+        js_payload = json.dumps(payload)
+        GcpMethods().pubsub_push(message=js_payload)
     return 200 
 
 def reddit_handler(event, context):
@@ -29,67 +34,61 @@ def reddit_handler(event, context):
     # return list of records to export
     post_output = []
 
-    # ingest titles from reddit, one sub at a time. Can parallelize later.
-    for i in payload['playlists']:
+    # parse out the subreddit and spotify playlist to look up 
+    sub = payload['sub']
 
-        # parse out the subreddit and spotify playlist to look up 
-        sub, playlist_uri = i['sub'], i['uri']
+    # get reddit posts for the sub
+    posts = redd.get_posts(subreddit_name=sub, post_count=post_count)
 
-        # get reddit posts for the sub
-        posts = redd.get_posts(subreddit_name=sub, post_count=post_count)
-
-        # parse post titles for track and artist
-        #posts = [post.update(redd.parse_title(post['title'])) for post in posts]
-        for post in posts:
-            post.update(redd.parse_title(title=post['title']))
-
-        # append to the output list, delete subreddit specific one
-        post_output.extend(posts)
-        del posts
+    # parse post titles for track and artist
+    #posts = [post.update(redd.parse_title(post['title'])) for post in posts]
+    for post in posts:
+        post.update(redd.parse_title(title=post['title']))
 
     # convert to df
-    post_df = pd.DataFrame(post_output)
+    post_df = pd.DataFrame(posts)
 
     # write to GCS data bucket
     data_bucket = os.environ['DATA_BUCKET']
     destination_blob = os.environ['REDDIT_INGEST_DATA_PATH']
-    destination_blob = format_date_key(destination_blob)
+    destination_blob = format_hive_partition(destination_blob, subreddit=sub)
     GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=post_df)
 
     # write generic message to pubsub to trigger spotify function
-    GcpMethods().pubsub_push(message="SEND IT")
+    spotify_payload = json.dumps({"reddit_blob": destination_blob, "subreddit": sub})
+    GcpMethods().pubsub_push(message=spotify_payload)
 
     return 200 
 
 def spotify_handler(event, context):
 
+    # parse incoming pubsub message, set env vars, read reddit data from GCS
+    payload = GcpMethods().pubsub_read(event=event)
+    payload = json.loads(payload)
+    data_bucket, source_blob = os.environ['DATA_BUCKET'], payload["reddit_blob"] 
+    reddit_data = GcpMethods().read_gcs_tsv(bucket=data_bucket, blob=source_blob)
+
+    #instantiate spotify object
     spot = Spotify()
 
-    # parse out titles from data
-    data_bucket, source_blob = os.environ['DATA_BUCKET'], os.environ['REDDIT_INGEST_DATA_PATH']
-    source_blob = format_date_key(source_blob)
-    df_data = GcpMethods().read_gcs_tsv(bucket=data_bucket, blob=source_blob)
-    # deduplicate and rid null's on artist and track parsed
-    #spot_data = df_data[['artist', 'track']].drop_duplicates(subset=['artist','track']).dropna()
+    # search URIs of tracks, update df. then pass to a slim df, drop main reddit df 
+    reddit_data['track_id'] = reddit_data.apply(lambda row: None if row.artist is None or row.track is None else spot.get_track_id(artist=row.artist, track=row.track), axis=1)
+    comb_df = reddit_data[['post_id', 'track_id']]
+    del reddit_data
 
-    # search URIs of tracks, update df. 
-    df_data['track_id'] = df_data.apply(lambda row: None if row.artist is None or row.track is None else spot.get_track_id(artist=row.artist, track=row.track), axis=1)
-    #spot_data['track_id'] = spot_data.apply(lambda row: spot.get_track_id(artist=row.artist, track=row.track), axis=1)
-    #spot_data = spot_data.dropna()
-    spot_data = list(df_data['track_id'].drop_duplicates().dropna())
-
-    # Get details of those to join to main DF
+    # get distinct track ids and look up further track information on spotify
+    spot_data = list(comb_df['track_id'].drop_duplicates().dropna())
     df_dim_track = pd.DataFrame(spot.get_track_details(ids=spot_data))
-    
-    # write back reddit results to GCS with track id
-    destination_blob = os.environ['REDDIT_INGEST_DATA_PATH']
-    destination_blob = format_date_key(destination_blob)
-    GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=df_data)
+
+    # join track dim df to main df having post keys 
+    # explicitly cast as type str
+    df_dim_track['track_id'], comb_df['track_id'] = df_dim_track['track_id'].astype(str), comb_df['track_id'].astype(str)
+    comb_df = comb_df.merge(df_dim_track, how='left', on='track_id', suffixes=(None, "_dim")) 
 
     # write the track dim table (df) to gcs
     destination_blob = os.environ['SPOTIFY_INGEST_DATA_PATH']
-    destination_blob = format_date_key(destination_blob)
-    GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=df_dim_track)
+    destination_blob = format_hive_partition(destination_blob, subreddit=payload['subreddit'])
+    GcpMethods().write_gcs(bucket=data_bucket, blob=destination_blob, blob_data=comb_df)
 
     return 200
 

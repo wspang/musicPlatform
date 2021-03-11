@@ -35,7 +35,6 @@ resource "google_storage_bucket_iam_member" "code_object_cf_ingest_member" {
     condition {
         title = "cf_ingest_code_bucket_access"
         description = "allow cloud functions to get config ingest files"
-        expression = "resource.type == 'storage.googleapis.com/Object' && resource.name == 'projects/_/buckets/${google_storage_bucket.music_code_bucket.name}/objects/${var.INGEST_CONFIG_FILE_PATH}'" 
         expression = <<-EOT
             resource.type == 'storage.googleapis.com/Bucket' 
             || ( resource.type == 'storage.googleapis.com/Object' 
@@ -258,7 +257,7 @@ resource "google_cloudfunctions_function" "ingest_reddit_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
+        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{HIVEPARTITION}/data.tsv"
         EXTERNAL_APP_SECRET_NAME = var.REDDIT_SECRET 
         EXTERNAL_APP_SECRET_VERSION = "latest"
         PUBSUB_TOPIC = google_pubsub_topic.spotify_ingest_trigger_topic.name
@@ -288,8 +287,8 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
     source_archive_object = google_storage_bucket_object.cloud_function_ingest_code_zip_file.name
     environment_variables = {
         DATA_BUCKET = google_storage_bucket.music_data_bucket.name
-        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
-        SPOTIFY_INGEST_DATA_PATH = "${var.SPOTIFY_INGEST_DATA_PATH}{DATEPARTITION}/data.tsv"
+        REDDIT_INGEST_DATA_PATH = "${var.REDDIT_INGEST_DATA_PATH}{HIVEPARTITION}/data.tsv"
+        SPOTIFY_INGEST_DATA_PATH = "${var.SPOTIFY_INGEST_DATA_PATH}{HIVEPARTITION}/data.tsv"
         EXTERNAL_APP_SECRET_NAME = var.SPOTIFY_SECRET 
         EXTERNAL_APP_SECRET_VERSION = "latest"
         GCP_PROJECT_ID = var.PROJECT_ID
@@ -303,7 +302,7 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
 ##############################
 # BigQuery Extract Dataset and External Tables 
 ##############################
-
+/*
 resource "google_bigquery_dataset" "extract_schema" {
     dataset_id = var.BQ_EXTRACT_SCHEMA
     description = "Extract schema for external tables in GCS"
@@ -356,3 +355,4 @@ resource "google_bigquery_table" "extract_tbl_spotify" {
         }
     }
 }
+*/

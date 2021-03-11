@@ -53,15 +53,15 @@ def spotify_auth(grant_type):
     
     return token
 
-def format_date_key(object_path):
+def format_hive_partition(object_path, subreddit):
     # replaces the '{DATEPARTITION}' variable in string to format GCS date path.
-    replace_val = "{DATEPARTITION}"
-    date_format = date.today().strftime('dt=%Y-%m-%d')
+    replace_val = "{HIVEPARTITION}"
+    hive_partition = f"dt={date.today().strftime('%Y-%m-%d')}/sub={subreddit}"
 
     if replace_val not in object_path:
-        raise KeyError("calling format_date_key is used for GCS path partitions.\nRequired value: '{DATEPARTITION}'")
+        raise KeyError("calling format_date_key is used for GCS path partitions.\nRequired value: '{HIVEPARTITION}'")
 
-    object_path = object_path.replace(replace_val, date_format)
+    object_path = object_path.replace(replace_val, hive_partition)
     return object_path 
 
 class GcpMethods:
