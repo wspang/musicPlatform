@@ -1,0 +1,22 @@
+[
+    {"name": "post_id", "type": "STRING", "mode": "REQUIRED", "description": "The reddit post unique identifier."}
+    , {"name": "subreddit", "type": "STRING", "mode": "REQUIRED", "description": "Subreddit name the post came from."}
+    , {"name": "title", "type": "STRING", "mode": "REQUIRED", "description": "The reddit post full title."}
+    , {"name": "score", "type": "INTEGER", "mode": "REQUIRED", "description": "Amount of upvotes for a post."}
+    , {"name": "upvote_ratio", "type": "FLOAT", "mode": "REQUIRED", "description": "Ratio of upvotes to downvotes for a post."}
+    , {"name": "parsed_track", "type": "STRING", "mode": "NULLABLE", "description": "Attempt to parse a track from post title to lookup in Spotify."}
+    , {"name": "parsed_artist", "type": "STRING", "mode": "NULLABLE", "description": "Attempt to parse an artist from post title to lookup in Spotify."}
+    , {"name": "is_parsed", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If parsing logic was able to parse a post."}
+    , {"name": "is_found", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
+    , {"name": "track_id", "type": "STRING", "mode": "NULLABLE", "description": "The unique identifer of the spotify track."}
+    , {"name": "track_name", "type": "STRING", "mode": "NULLABLE", "description": "Track name in Spotify"}
+    , {"name": "track_popularity", "type": "INTEGER", "mode": "NULLABLE", "description": "Track popularity rating in Spotify, 0-100 scale."}
+    , {"name": "album_id", "type": "STRING", "mode": "NULLABLE", "description": "Album id in Spotify"}
+    , {"name": "album_name", "type": "STRING", "mode": "NULLABLE", "description": "Album name in Spotify"}
+    , {"name": "artist_id", "type": "STRING", "mode": "NULLABLE", "description": "Artist id in Spotify"}
+    , {"name": "artist_name", "type": "STRING", "mode": "NULLABLE", "description": "Artist name in Spotify"}
+    , {"name": "supporting_artists", "type": "STRING", "mode": "REPEATED", "description": "Supporting artists on the track, comma delimited"}
+    , {"name": "_meta_dt", "type": "DATE", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
+    , {"name": "_meta_is_current", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
+    , {"name": "_meta_is_original", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
+]

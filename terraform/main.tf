@@ -98,7 +98,9 @@ data "archive_file" "cloud_function_source_code" {
 
 resource "google_storage_bucket_object" "cloud_function_ingest_code_zip_file" {
     bucket = google_storage_bucket.music_code_bucket.name
-    name = "${var.INGEST_CODE_ZIP_PATH}#${data.archive_file.cloud_function_source_code.output_md5}"
+    # TODO: first name is when not updating code. second name is md5 hash when updating code. Try to get md5 name so it dont update every time.
+    name = var.INGEST_CODE_ZIP_PATH
+    # name = "${var.INGEST_CODE_ZIP_PATH}#${data.archive_file.cloud_function_source_code.output_md5}"
     source = data.archive_file.cloud_function_source_code.output_path
     content_disposition = "attachment"
     content_encoding = "gzip"
@@ -123,13 +125,32 @@ resource "time_sleep" "iam_sa_delay" {
     }
 }
 
+resource "google_service_account" "bigquery_service_account" {
+    account_id = "bq-dataops-sa-69"
+    display_name = "BQ_DO_SA"
+    description = "BigQuery Data Owner on datasets to load data and run ops."
+}
+
+resource "google_project_iam_member" "bigquery_service_account_project_job_creator" {
+    role = "roles/bigquery.jobUser"
+    member = "serviceAccount:${google_service_account.bigquery_service_account.email}"
+}
+
+resource "time_sleep" "iam_bq_sa_delay" {
+    # allow delay in SA creation for eventual consistency
+    create_duration = "4m"
+    triggers = {
+        google_service_account = google_service_account.bigquery_service_account.id
+    }
+}
+
 ##############################
 # Pubsub Topic and Cloud Scheduler to trigger jobs, pass data 
 ##############################
 resource "google_cloud_scheduler_job" "ingest_scheduler" {
-    name        = "ingest-trigger-job"
+    name = "ingest-trigger-job"
     description = "CRON schedule to trigger the config job."
-    schedule    = "0 1 * * *"
+    schedule = "0 1 * * *"
 
     pubsub_target {
         topic_name = google_pubsub_topic.ingest_kick_off_topic.id
@@ -302,17 +323,18 @@ resource "google_cloudfunctions_function" "ingest_spotify_function" {
 ##############################
 # BigQuery Extract Dataset and External Tables 
 ##############################
-/*
+
 resource "google_bigquery_dataset" "extract_schema" {
-    dataset_id = var.BQ_EXTRACT_SCHEMA
+    depends_on = [time_sleep.iam_bq_sa_delay]
+    dataset_id = "extract"
     description = "Extract schema for external tables in GCS"
-    location = "US"
+    location = var.REGION 
     delete_contents_on_destroy = true
     default_table_expiration_ms = null
     default_partition_expiration_ms = null
     access {
         role = "OWNER"
-        user_by_email = TODO
+        user_by_email = google_service_account.bigquery_service_account.email
     }
 }
 
@@ -324,14 +346,20 @@ resource "google_bigquery_table" "extract_tbl_reddit" {
 
     external_data_configuration {
         source_format = "CSV"
-        source_uris = "${google_storage_bucket.music_data_bucket.name}${var.REDDIT_INGEST_DATA_PATH}*"
+        source_uris = ["gs://${google_storage_bucket.music_data_bucket.name}/${var.REDDIT_INGEST_DATA_PATH}*"]
         autodetect = true
         schema = null
         compression = "NONE"
         ignore_unknown_values = true
         hive_partitioning_options {
-            mode = AUTO
-            source_uri_prefix = "${google_storage_bucket.music_data_bucket.name}${var.REDDIT_INGEST_DATA_PATH}"
+            mode = "AUTO"
+            source_uri_prefix = "gs://${google_storage_bucket.music_data_bucket.name}/${var.REDDIT_INGEST_DATA_PATH}"
+        }
+        csv_options {
+            quote = ""
+            allow_quoted_newlines = false
+            field_delimiter = "\t"
+            skip_leading_rows = 1
         }
     }
 }
@@ -344,15 +372,89 @@ resource "google_bigquery_table" "extract_tbl_spotify" {
 
     external_data_configuration {
         source_format = "CSV"
-        source_uris = "${google_storage_bucket.music_data_bucket.name}${var.SPOTIFY_INGEST_DATA_PATH}*"
+        source_uris = ["gs://${google_storage_bucket.music_data_bucket.name}/${var.SPOTIFY_INGEST_DATA_PATH}*"]
         autodetect = true
         schema = null
         compression = "NONE"
         ignore_unknown_values = true
         hive_partitioning_options {
-            mode = AUTO
-            source_uri_prefix = "${google_storage_bucket.music_data_bucket.name}${var.SPOTIFY_INGEST_DATA_PATH}"
+            mode = "AUTO"
+            source_uri_prefix = "gs://${google_storage_bucket.music_data_bucket.name}/${var.SPOTIFY_INGEST_DATA_PATH}"
+        }
+        csv_options {
+            quote = ""
+            allow_quoted_newlines = false
+            field_delimiter = "\t"
+            skip_leading_rows = 1
         }
     }
 }
-*/
+
+##############################
+# BigQuery Model Tables, Views, Sprocs 
+##############################
+
+resource "google_bigquery_dataset" "dw_schema" {
+    depends_on = [time_sleep.iam_bq_sa_delay]
+    dataset_id = "dw" 
+    description = "cleaned data for analysis"
+    location = var.REGION 
+    delete_contents_on_destroy = true
+    default_table_expiration_ms = null
+    default_partition_expiration_ms = null
+    access {
+        role = "OWNER"
+        user_by_email = google_service_account.bigquery_service_account.email
+    }
+}
+
+resource "google_bigquery_table" "post_master" {
+    depends_on = [time_sleep.iam_bq_sa_delay]
+    dataset_id = google_bigquery_dataset.dw_schema.dataset_id
+    table_id   = "post_master"
+    description = "master table combining reddit and spotify. Need set meta current / first fields"
+    deletion_protection = false
+
+    schema = file("../bigquery/tables/dw_post_master.json")
+    clustering = ["subreddit"]
+    time_partitioning {
+        field = "_meta_dt"
+        type = "DAY"
+        require_partition_filter = false
+    }
+}
+
+resource "google_bigquery_routine" "sp_post_master" {
+    depends_on = [time_sleep.iam_bq_sa_delay]
+    dataset_id = google_bigquery_dataset.dw_schema.dataset_id
+    routine_id = "sp_post_master"
+    routine_type = "PROCEDURE"
+    language = "SQL"
+    arguments {
+        name="slice_start" 
+        mode="IN" 
+        data_type="{\"typeKind\" : \"DATE\"}"
+    }
+    arguments {
+        name="slice_end" 
+        mode="IN" 
+        data_type="{\"typeKind\" : \"DATE\"}"
+    }
+    definition_body = file("../bigquery/sprocs/sp_post_master.sql")
+}
+
+resource "google_bigquery_data_transfer_config" "schedule_call_sp_post_master" {
+    depends_on = [time_sleep.iam_bq_sa_delay]
+    project = var.PROJECT
+
+    display_name = "call_sp_post_master"
+    location = var.REGION
+    data_source_id = "scheduled_query"
+    schedule = "Every Day 01:30"
+    destination_dataset_id = google_bigquery_dataset.dw_schema.dataset_id
+    service_account_name = google_service_account.bigquery_service_account.email
+
+    params = {
+        query = "CALL `${google_bigquery_dataset.dw_schema.dataset_id}.${google_bigquery_routine.sp_post_master.routine_id}`(CURRENT_DATE(), CURRENT_DATE());"
+    }
+}
