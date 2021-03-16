@@ -237,7 +237,7 @@ resource "google_cloudfunctions_function" "ingest_config_function" {
     description = "provides the config for the music ingest application. trigger reddit function next, then spotify"
     runtime = "python37"
 
-    available_memory_mb = 128
+    available_memory_mb = 256
     timeout = 60
     entry_point = "config_handler"
     ingress_settings = "ALLOW_INTERNAL_ONLY"
