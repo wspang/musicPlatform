@@ -451,7 +451,7 @@ resource "google_bigquery_data_transfer_config" "schedule_call_sp_post_master" {
     location = var.REGION
     data_source_id = "scheduled_query"
     schedule = "Every Day 01:30"
-    destination_dataset_id = google_bigquery_dataset.dw_schema.dataset_id
+    destination_dataset_id = ""
     service_account_name = google_service_account.bigquery_service_account.email
 
     params = {

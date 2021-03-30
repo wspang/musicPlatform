@@ -68,4 +68,8 @@ BEGIN
         WHERE bs._meta_dt=meta_vals._meta_dt
         AND bs.post_id=meta_vals.post_id;
     END;
+    -- drop the temporary table. 
+    BEGIN
+        DROP TABLE `stg_records`;
+    END;
 END;
