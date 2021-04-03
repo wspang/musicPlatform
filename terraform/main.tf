@@ -377,6 +377,7 @@ resource "google_bigquery_table" "extract_tbl_reddit" {
         csv_options {
             quote = ""
             allow_quoted_newlines = false
+            allow_jagged_rows = true
             field_delimiter = "\t"
             skip_leading_rows = 1
         }
@@ -403,6 +404,7 @@ resource "google_bigquery_table" "extract_tbl_spotify" {
         csv_options {
             quote = ""
             allow_quoted_newlines = false
+            allow_jagged_rows = true
             field_delimiter = "\t"
             skip_leading_rows = 1
         }

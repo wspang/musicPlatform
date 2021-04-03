@@ -2,7 +2,7 @@
     {"name": "post_id", "type": "STRING", "mode": "REQUIRED", "description": "The reddit post unique identifier."}
     , {"name": "track_id", "type": "STRING", "mode": "NULLABLE", "description": "The unique identifer of the spotify track."}
     , {"name": "track_name", "type": "STRING", "mode": "NULLABLE", "description": "Track name in Spotify"}
-    , {"name": "track_popularity", "type": "INTEGER", "mode": "NULLABLE", "description": "Track popularity rating in Spotify, 0-100 scale."}
+    , {"name": "track_popularity", "type": "FLOAT", "mode": "NULLABLE", "description": "Track popularity rating in Spotify, 0-100 scale."}
     , {"name": "album_name", "type": "STRING", "mode": "NULLABLE", "description": "Album name in Spotify"}
     , {"name": "album_id", "type": "STRING", "mode": "NULLABLE", "description": "Album id in Spotify"}
     , {"name": "artist_name", "type": "STRING", "mode": "NULLABLE", "description": "Artist name in Spotify"}
@@ -17,5 +17,5 @@
     , {"name": "instrumentalness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized score of how much of the song comprises of instrumental vs lyrics"}
     , {"name": "acousticness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score the track is acoustic, non-electronic"}
     , {"name": "liveness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score that the track was recorded live"}
-    , {"name": "duration_ms", "type": "INTEGER", "mode": "NULLABLE", "description": "song duration in MS"}
+    , {"name": "duration_ms", "type": "FLOAT", "mode": "NULLABLE", "description": "song duration in MS"}
 ]

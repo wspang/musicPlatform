@@ -35,7 +35,7 @@ BEGIN
             , spot.instrumentalness
             , spot.acousticness
             , spot.liveness
-            , INTEGER(ROUND(spot.duration_ms / 1000)) AS track_duration_seconds
+            , CAST(spot.duration_ms / 1000 AS INT64) AS track_duration_seconds
             -- meta date related
             , redd.dt AS _meta_dt
             , FALSE AS _meta_is_current
