@@ -118,8 +118,8 @@ data "archive_file" "cloud_function_source_code" {
 resource "google_storage_bucket_object" "cloud_function_ingest_code_zip_file" {
     bucket = google_storage_bucket.music_code_bucket.name
     # TODO: first name is when not updating code. second name is md5 hash when updating code. Try to get md5 name so it dont update every time.
-    name = var.INGEST_CODE_ZIP_PATH
-    # name = "${var.INGEST_CODE_ZIP_PATH}#${data.archive_file.cloud_function_source_code.output_md5}"
+    # name = var.INGEST_CODE_ZIP_PATH
+    name = "${var.INGEST_CODE_ZIP_PATH}#${data.archive_file.cloud_function_source_code.output_md5}"
     source = data.archive_file.cloud_function_source_code.output_path
     content_disposition = "attachment"
     content_encoding = "gzip"

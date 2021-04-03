@@ -39,18 +39,32 @@ class Spotify():
             parsed['artist_name'], parsed['artist_id'] = None, None
         # get supporting artists
         parsed['supporting_artists'] = ", ".join([a['name'] for a in data['artists']][1:]) if len(data['artists']) > 1 else None
+        # track features
+        # Mood:
+        parsed['danceability'], parsed['energy'], parsed['valence'], parsed['tempo'] = data['danceability'], data['energy'], data['valence'], data['tempo']
+        # Properties:
+        parsed['loudness'], parsed['speechiness'], parsed['instrumentalness'] = data['loudness'], data['speechiness'], data['instrumentalness'] 
+        # Context:
+        parsed['acousticness'], parsed['liveness'], parsed['duration_ms'] = data['acousticness'], data['liveness'], data['duration_ms'] 
         # return parsed dictionary
         return parsed
 
     def get_track_details(self, ids:list):
         # Given a list of track IDs, return greater details about it like popularity and 'musicality'
         raw_data = []
+        # break tracks into batches of 50 for api constraint
         for t in range(0, len(ids), 50):
             id_formatter = ",".join(ids[t:t+50])
+            # call first api for top level track details
             url = f"https://api.spotify.com/v1/tracks?ids={id_formatter}"
-            response = requests.get(url=url, headers=self.header).json()['tracks']
+            track_response = requests.get(url=url, headers=self.header).json()['tracks']
+            # call second api for in depth audio features
+            url = f"https://api.spotify.com/v1/audio-features?ids={id_formatter}"
+            feature_response = requests.get(url=url, headers=self.header).json()['audio_features']
+            # zip the track and features list together to parse. maintains order from track id list.
+            zipped_response = [{**u, **v} for u,v in zip(track_response, feature_response)] 
             # pass to parser function to reform dictionary
-            response = [self.parse_track_details(r) for r in response]
+            response = [self.parse_track_details(r) for r in zipped_response]
             raw_data.extend(response)
         return raw_data
 
