@@ -25,7 +25,7 @@
     , {"name": "instrumentalness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized score of how much of the song comprises of instrumental vs lyrics"}
     , {"name": "acousticness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score the track is acoustic, non-electronic"}
     , {"name": "liveness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score that the track was recorded live"}
-    , {"name": "track_duration_seconds", "type": "INT", "mode": "NULLABLE", "description": "song duration in MS"}
+    , {"name": "track_duration_seconds", "type": "INTEGER", "mode": "NULLABLE", "description": "song duration in MS"}
     , {"name": "_meta_dt", "type": "DATE", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
     , {"name": "_meta_is_current", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
     , {"name": "_meta_is_original", "type": "BOOLEAN", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}

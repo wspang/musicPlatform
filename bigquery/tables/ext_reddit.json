@@ -6,6 +6,4 @@
     , {"name": "upvote_ratio", "type": "FLOAT", "mode": "REQUIRED", "description": "Ratio of upvotes to downvotes for a post."}
     , {"name": "artist", "type": "STRING", "mode": "NULLABLE", "description": "Attempt to parse an artist from post title to lookup in Spotify."}
     , {"name": "track", "type": "STRING", "mode": "NULLABLE", "description": "Attempt to parse a track from post title to lookup in Spotify."}
-    , {"name": "dt", "type": "DATE", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
-    , {"name": "sub", "type": "STRING", "mode": "REQUIRED", "description": "Subreddit name the post came from."}
 ]

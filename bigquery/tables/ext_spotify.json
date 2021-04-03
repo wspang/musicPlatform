@@ -7,7 +7,7 @@
     , {"name": "album_id", "type": "STRING", "mode": "NULLABLE", "description": "Album id in Spotify"}
     , {"name": "artist_name", "type": "STRING", "mode": "NULLABLE", "description": "Artist name in Spotify"}
     , {"name": "artist_id", "type": "STRING", "mode": "NULLABLE", "description": "Artist id in Spotify"}
-    , {"name": "supporting_artists", "type": "STRING", "mode": "REPEATED", "description": "Supporting artists on the track, comma delimited"}
+    , {"name": "supporting_artists", "type": "STRING", "mode": "NULLABLE", "description": "Supporting artists on the track, comma delimited"}
     , {"name": "danceability", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized spotify rating of lighting up the dance floor"}
     , {"name": "energy", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized spotify rating of how hype the track is"}
     , {"name": "valence", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized spotify rating of mood"}
@@ -17,7 +17,5 @@
     , {"name": "instrumentalness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized score of how much of the song comprises of instrumental vs lyrics"}
     , {"name": "acousticness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score the track is acoustic, non-electronic"}
     , {"name": "liveness", "type": "FLOAT", "mode": "NULLABLE", "description": "normalized confidence score that the track was recorded live"}
-    , {"name": "duration_ms", "type": "BIGINT", "mode": "NULLABLE", "description": "song duration in MS"}
-    , {"name": "dt", "type": "DATE", "mode": "REQUIRED", "description": "If the parsed title found a track in spotify."}
-    , {"name": "sub", "type": "STRING", "mode": "REQUIRED", "description": "Subreddit name the post came from."}
+    , {"name": "duration_ms", "type": "INTEGER", "mode": "NULLABLE", "description": "song duration in MS"}
 ]
