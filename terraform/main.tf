@@ -20,6 +20,7 @@ resource "google_storage_bucket" "music_code_bucket"{
     force_destroy = false
 }
 
+# IAM Members for bucket
 # roles/storage.objectViewer does not include get bucket access. need below or a custom role.
 resource "google_storage_bucket_iam_member" "code_bucket_cf_ingest_member" {
     bucket = google_storage_bucket.music_code_bucket.name
@@ -56,6 +57,7 @@ resource "google_storage_bucket" "music_data_bucket"{
     }
 }
 
+# IAM Members for bucket
 resource "google_storage_bucket_iam_member" "data_bucket_cf_ingest_member" {
     bucket = google_storage_bucket.music_data_bucket.name
     role = "roles/storage.legacyBucketReader"
@@ -78,6 +80,23 @@ resource "google_storage_bucket_iam_member" "data_object_cf_ingest_member" {
             EOT
     } 
     depends_on = [time_sleep.iam_sa_delay]
+}
+
+resource "google_storage_bucket_iam_member" "data_object_bq_ext_member" {
+    bucket = google_storage_bucket.music_data_bucket.name
+    role = "roles/storage.objectViewer"
+    member = "serviceAccount:${google_service_account.bigquery_service_account.email}"
+    condition {
+        title = "bq_ext_data_object_access"
+        description = "allow bigquery routine schedule to read files via external table."
+        expression = <<-EOT
+            resource.type == 'storage.googleapis.com/Bucket' 
+            || ( resource.type == 'storage.googleapis.com/Object' 
+                && ( resource.name.startsWith( 'projects/_/buckets/${google_storage_bucket.music_data_bucket.name}/objects/${var.REDDIT_INGEST_DATA_PATH}' ) 
+                    || resource.name.startsWith( 'projects/_/buckets/${google_storage_bucket.music_data_bucket.name}/objects/${var.SPOTIFY_INGEST_DATA_PATH}' )))
+            EOT
+    } 
+    depends_on = [time_sleep.iam_bq_sa_delay]
 }
 
 ##############################
