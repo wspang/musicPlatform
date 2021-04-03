@@ -25,6 +25,17 @@ BEGIN
             , CASE WHEN spot.supporting_artists IS NOT NULL 
                 THEN SPLIT(spot.supporting_artists, ', ') ELSE NULL 
             END AS supporting_artists 
+            -- spotify track features
+            , spot.danceability
+            , spot.energy
+            , spot.valence
+            , spot.tempo
+            , spot.loudness
+            , spot.speechiness
+            , spot.instrumentalness
+            , spot.acousticness
+            , spot.liveness
+            , INTEGER(ROUND(spot.duration_ms / 1000)) AS track_duration_seconds
             -- meta date related
             , redd.dt AS _meta_dt
             , FALSE AS _meta_is_current
@@ -32,6 +43,7 @@ BEGIN
         FROM `extract.reddit` AS redd
         LEFT JOIN `extract.spotify` AS spot
             ON redd.dt=spot.dt
+            AND redd.sub=spot.sub
             AND redd.post_id=spot.post_id
         WHERE redd.dt BETWEEN slice_start AND slice_end;
     END;
@@ -47,9 +59,9 @@ BEGIN
         );
     
         INSERT `dw.post_master` 
-            (post_id, subreddit, title, score, upvote_ratio, parsed_track, parsed_artist, is_parsed, is_found, track_id, track_name, track_popularity, album_id, album_name, artist_id, artist_name, supporting_artists, _meta_dt, _meta_is_current, _meta_is_original)
+            (post_id, subreddit, title, score, upvote_ratio, parsed_track, parsed_artist, is_parsed, is_found, track_id, track_name, track_popularity, album_id, album_name, artist_id, artist_name, supporting_artists, danceability, energy, valence, tempo, loudness, speechiness, instrumentalness, acousticness, _meta_dt, _meta_is_current, _meta_is_original)
         SELECT 
-            post_id, subreddit, title, score, upvote_ratio, parsed_track, parsed_artist, is_parsed, is_found, track_id, track_name, track_popularity, album_id, album_name, artist_id, artist_name, supporting_artists, _meta_dt, _meta_is_current, _meta_is_original
+            post_id, subreddit, title, score, upvote_ratio, parsed_track, parsed_artist, is_parsed, is_found, track_id, track_name, track_popularity, album_id, album_name, artist_id, artist_name, supporting_artists, danceability, energy, valence, tempo, loudness, speechiness, instrumentalness, acousticness, _meta_dt, _meta_is_current, _meta_is_original
         FROM `stg_records`;
     
         UPDATE `dw.post_master` AS bs 
@@ -67,9 +79,5 @@ BEGIN
         ) AS meta_vals
         WHERE bs._meta_dt=meta_vals._meta_dt
         AND bs.post_id=meta_vals.post_id;
-    END;
-    -- drop the temporary table. 
-    BEGIN
-        DROP TABLE `stg_records`;
     END;
 END;
